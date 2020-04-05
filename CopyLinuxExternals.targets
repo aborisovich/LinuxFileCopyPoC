@@ -1,48 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="CopyLinuxExternals" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
   <ItemGroup>
     <ItemsToCopy Include="$(SolutionDir)external\precompiled\**\Linux\**" />
   </ItemGroup>
   <PropertyGroup>
-    <DeployPath>$(RemoteRootDir)/external</DeployPath>
-    <FileMap></FileMap>
+    <DeployPath>/home/aborisovich/projects/</DeployPath>
   </PropertyGroup>
 
-  <Target Name="CopyLinuxExternals" BeforeTargets="_CopySources"
+  
+  <Target Name="CopyLinuxExternals" BeforeTargets="_ValidateSources"
           Outputs="@(ItemsToCopy)">
-    <!--Enable verbosity to check what files are beeing mapped -->
+    <!--Increase verbosity to check files beeing mapped -->
     <Message Importance="low" Text="Files to map: @(ItemsToCopy)" />
 
-    <MapFilesWindowsToLinux FilesToMap="@(ItemsToCopy)">
-      <Output TaskParameter="FileMapString" PropertyName="WindowsLinuxFileMap"/>
-    </MapFilesWindowsToLinux>
+    <MapFilesWindowsLinux FilesToMap="@(ItemsToCopy)"
+                          DeployDirectory="$(DeployPath)"
+                          PathFullToRelativePrefix="$(SolutionDir)">
+      <Output TaskParameter="FileMap" PropertyName="WindowsLinuxFileMap"/>
+    </MapFilesWindowsLinux>
+    <PropertyGroup>
+      <AdditionalSourcesToCopyMapping>$(WindowsLinuxFileMap)$(AdditionalSourcesToCopyMapping)</AdditionalSourcesToCopyMapping>
+    </PropertyGroup>
     <Message Text="Your string: $(WindowsLinuxFileMap)" />
-  
 </Target>
 
+
+  <!--Task creates a map matching Windows to Linux files in format fullWindowsPath:=fullLinuxPath suitable to be used
+      with $(AdditionalSourcesToCopyMapping) property.
+      - If list of files is provided 'FilesToMap' parameter has full path format please specify PathFullToRelativePrefix parameter.
+      - PathFullToRelativePrefix is substracted from fullPath to create relative path that is appended to linux DeployDirectory
+        path to determine final linux path of the file.  -->
   <UsingTask
-    TaskName="MapFilesWindowsToLinux"
+    TaskName="MapFilesWindowsLinux"
     TaskFactory="CodeTaskFactory"
     AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll" >
     <ParameterGroup>
       <FilesToMap ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
-      <FileMapString Output="true" />
+      <DeployDirectory ParameterType="System.String" Required="true" />
+      <PathFullToRelativePrefix ParameterType="System.String" Required="false" />
+      <FileMap ParameterType="System.String" Output="true" />
     </ParameterGroup>
     <Task>
       <Using Namespace="System"/>
       <Code Type="Fragment" Language="cs">
         <![CDATA[
-          StringBuilder command = new StringBuilder();
+          StringBuilder builder = new StringBuilder();
           foreach (ITaskItem file in FilesToMap)
           {
-              command.AppendFormat("ItemName={0}\r\n", file);
-              foreach (string parameter in file.MetadataNames)
+              String relativeFilePath;
+              
+              //convert full windows path to relative when PathFullToRelativePrefix is set to determine final linux file path
+              if (!String.IsNullOrEmpty(PathFullToRelativePrefix))
               {
-                  command.AppendFormat("  {0}={1}\r\n", parameter, file.GetMetadata(parameter));
+                  // Make sure PathFullToRelativePrefix ends with "\" character
+                  if (!PathFullToRelativePrefix.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                      PathFullToRelativePrefix += Path.DirectorySeparatorChar;
+                      
+                  Uri filePath = new Uri(file.GetMetadata("FullPath"));
+                  Uri folderPath = new Uri(PathFullToRelativePrefix);
+                  relativeFilePath = Uri.UnescapeDataString(folderPath.MakeRelativeUri(filePath).ToString()
+                                    .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar));
               }
-              command.AppendFormat("\r\n");
+              else
+                  relativeFilePath = file.GetMetadata("Identity");
+              
+              // Make sure DeployDirectory ends with "/" character
+              if (!DeployDirectory.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+                  DeployDirectory += Path.AltDirectorySeparatorChar;
+              
+              String linuxFile = DeployDirectory + relativeFilePath.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+              builder.AppendFormat("{0}:={1};", file.GetMetadata("FullPath"), linuxFile);
           }
-          FileMapString = command.ToString();
+          FileMap += builder.ToString();
       ]]>
       </Code>
     </Task>

@@ -1,8 +1,10 @@
 #include <iostream>
+#include "SomeClass1.hpp"
 
 int main()
 {
     std::cout << "hello from Proj1!" << std::endl;
-    std::cout << "2";
+    SomeClass someClass;
+    someClass.doStuff();
     return 0;
 }
