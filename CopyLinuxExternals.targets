@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="CopyLinuxExternals" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ItemsToCopy Include="$(SolutionDir)external\precompiled\**\Linux\**" />
+  </ItemGroup>
+  <PropertyGroup>
+    <DeployPath>$(RemoteRootDir)/external</DeployPath>
+    <FileMap></FileMap>
+  </PropertyGroup>
+
+  <Target Name="CopyLinuxExternals" BeforeTargets="_CopySources"
+          Outputs="@(ItemsToCopy)">
+    <!--Enable verbosity to check what files are beeing mapped -->
+    <Message Importance="low" Text="Files to map: @(ItemsToCopy)" />
+
+    <MapFilesWindowsToLinux FilesToMap="@(ItemsToCopy)">
+      <Output TaskParameter="FileMapString" PropertyName="WindowsLinuxFileMap"/>
+    </MapFilesWindowsToLinux>
+    <Message Text="Your string: $(WindowsLinuxFileMap)" />
+  
+</Target>
+
+  <UsingTask
+    TaskName="MapFilesWindowsToLinux"
+    TaskFactory="CodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll" >
+    <ParameterGroup>
+      <FilesToMap ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <FileMapString Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System"/>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          StringBuilder command = new StringBuilder();
+          foreach (ITaskItem file in FilesToMap)
+          {
+              command.AppendFormat("ItemName={0}\r\n", file);
+              foreach (string parameter in file.MetadataNames)
+              {
+                  command.AppendFormat("  {0}={1}\r\n", parameter, file.GetMetadata(parameter));
+              }
+              command.AppendFormat("\r\n");
+          }
+          FileMapString = command.ToString();
+      ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+</Project>

@@ -1,0 +1,1 @@
+@(ItemsToCopy)=:$([System.Text.RegularExpressions.Regex]::Replace($(_DeployPathIdentity)/%(RecursiveDir)%(Filename)%(Extension), '[\\]', '/'))
