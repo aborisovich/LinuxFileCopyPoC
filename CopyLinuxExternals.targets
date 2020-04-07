@@ -1,30 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="CopyLinuxExternals" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
+<!-- Order of the tasks invoked by Linux project copy files to remote
+1) ConsolidateSourcesToCopy
+2) RequiresRemoteConnection
+3) ResolveRemoteTarget
+4) PrepareUpToDateChecks
+5) CopySources -->
+
+  <!-- User settings for this target -->
   <ItemGroup>
     <ItemsToCopy Include="$(SolutionDir)external\precompiled\**\Linux\**" />
   </ItemGroup>
   <PropertyGroup>
-    <DeployPath>/home/aborisovich/projects/</DeployPath>
+    <!-- Directory where items to ItemsToCopy are deployed on remote -->
+    <DeployPath>~/projects/</DeployPath>
   </PropertyGroup>
-
   
-  <Target Name="CopyLinuxExternals" BeforeTargets="_ValidateSources"
+  <Target Name="CopyLinuxExternals" BeforeTargets="_CopySources"
           Outputs="@(ItemsToCopy)">
     <!--Increase verbosity to check files beeing mapped -->
-    <Message Importance="low" Text="Files to map: @(ItemsToCopy)" />
+    <Message Text="Files to map: @(ItemsToCopy)" />
 
     <MapFilesWindowsLinux FilesToMap="@(ItemsToCopy)"
                           DeployDirectory="$(DeployPath)"
                           PathFullToRelativePrefix="$(SolutionDir)">
-      <Output TaskParameter="FileMap" PropertyName="WindowsLinuxFileMap"/>
+      <Output TaskParameter="FileMap" PropertyName="WindowsLinuxFileMap" />
     </MapFilesWindowsLinux>
-    <PropertyGroup>
-      <AdditionalSourcesToCopyMapping>$(WindowsLinuxFileMap)$(AdditionalSourcesToCopyMapping)</AdditionalSourcesToCopyMapping>
-    </PropertyGroup>
-    <Message Text="Your string: $(WindowsLinuxFileMap)" />
-</Target>
+    <Message Text="Additional sources to copy mapping: $(WindowsLinuxFileMap)" />
+    <Message Text="RemoteTarget: $(ResolvedRemoteTarget)" />
+    
+    <ConsolidateSourcesToCopy ProjectDir="$(SolutionDir)external"
+                              AdditionalSourcesMappings="$(WindowsLinuxFileMap)" />
+    <RequiresRemoteConnection />
 
+    <Message Text="Additional sources to copy remotely: @(AdditionalSourcesToCopyRemotely)" />
+    <Message Text="Final sources to copy remotely: @(FinalSourcesToCopyRemotely)" />
+    
+
+    <CopySources  Sources=""
+                  AdditionalSources="@(AdditionalSourcesToCopyRemotely)"
+                  UpToDateFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).CopySourcesUpToDateFile.tlog"
+                  RemoteProjectDirFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).RemoteProjectDirFile.tlog"
+                  RemoteOutDir="$(DeployPath)"
+                  ProjectDir="$(SolutionDir)external"
+                  RemoteProjectDir="$(DeployPath)"
+                  IntermediateDir="$(SolutionDir)external"
+                  RemoteTarget="$(ResolvedRemoteTarget)" />
+</Target>
 
   <!--Task creates a map matching Windows to Linux files in format fullWindowsPath:=fullLinuxPath suitable to be used
       with $(AdditionalSourcesToCopyMapping) property.

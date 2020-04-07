@@ -34,13 +34,14 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <AdditionalSourcesToCopyMapping>$(WindowsLinuxFileMap)</AdditionalSourcesToCopyMapping>
+    <AdditionalSourcesToCopyMapping>C:\Users\boris\Source\repos\LinuxFileCopyPoC\external\precompiled\alsa-lib\Linux\x64\Release\bin\aserver:=~/projects/external/precompiled/alsa-lib/Linux/x64/Release/bin/aserver;$(AdditionalSourcesToCopyMapping)</AdditionalSourcesToCopyMapping>
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <AdditionalSourcesToCopyMapping>$(WindowsLinuxFileMap)</AdditionalSourcesToCopyMapping>
+    <AdditionalSourcesToCopyMapping>C:\Users\boris\Source\repos\LinuxFileCopyPoC\external\precompiled\alsa-lib\Linux\x64\Release\bin\aserver:=~/projects/external/precompiled/alsa-lib/Linux/x64/Release/bin/aserver;$(AdditionalSourcesToCopyMapping)</AdditionalSourcesToCopyMapping>
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
   </PropertyGroup>
+  <Import Project="$(SolutionDir)CopyLinuxExternals.targets" />
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\SomeClass.cpp" />
@@ -62,5 +63,4 @@
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
-  <Import Project="..\CopyLinuxExternals.targets" />
 </Project>
