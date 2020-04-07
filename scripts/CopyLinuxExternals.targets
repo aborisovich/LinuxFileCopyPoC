@@ -34,7 +34,6 @@
     </MapFilesWindowsLinux>
 
     <CopySources  Sources="@(WindowsLinuxFileMap)"
-                  AdditionalSources="@(ItemsToCopyWithMetadata)"
                   UpToDateFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).CopySourcesUpToDateFile.tlog"
                   RemoteProjectDirFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).RemoteProjectDirFile.tlog"
                   RemoteOutDir="$(DeployPath)"
