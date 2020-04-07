@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="CopyLinuxExternals" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- User settings for this target -->
+  <ItemGroup>
+    <!-- List of files to be copied to remote host -->
+    <FilesToCopy Include="$(SolutionDir)external\precompiled\**\Linux\**" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- Directory where FilesToCopy are deployed on remote host -->
+    <DeployPath>~/projects/</DeployPath>
+    <!-- Path prefix substracted from ItemGroup files path used to deduct path on remote host (DeployPath + [ItemGroup - PathFullToRelativePrefix]) -->
+    <PathFullToRelativePrefix>$(SolutionDir)</PathFullToRelativePrefix>
+  </PropertyGroup>
+
+
+  <!--
+  Target copies list of files set in @FilesToCopy item to the remote host.
+  Operation is performed once and is not repeated with parent project rebuilds.
+  Task is up to date until CopySourcesUpToDateFile.tlog file exists.
+  -->
+  <Target Name="CopyLinuxExternals" BeforeTargets="_CopySources" DependsOnTargets="_RequiresRemoteConnection"
+          Outputs="@(FilesToCopy)">
+    
+    <!--Increase verbosity to show debug messages -->
+    <Message Importance="low" Text="Files to copy: @(FilesToCopy)" />
+    <Message Importance="low" Text="RemoteTarget: $(ResolvedRemoteTarget)" />
+
+    <!--Map windows files to linux files -->
+    <MapFilesWindowsLinux FilesToMap="@(FilesToCopy)"
+                          DeployDirectory="$(DeployPath)"
+                          PathFullToRelativePrefix="$(PathFullToRelativePrefix)">
+      <Output TaskParameter="FileMap" ItemName="WindowsLinuxFileMap" />
+    </MapFilesWindowsLinux>
+
+    <CopySources  Sources="@(WindowsLinuxFileMap)"
+                  AdditionalSources="@(ItemsToCopyWithMetadata)"
+                  UpToDateFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).CopySourcesUpToDateFile.tlog"
+                  RemoteProjectDirFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).RemoteProjectDirFile.tlog"
+                  RemoteOutDir="$(DeployPath)"
+                  ProjectDir="$(SolutionDir)external"
+                  RemoteProjectDir="$(DeployPath)"
+                  IntermediateDir="$(SolutionDir)external"
+                  RemoteTarget="$(ResolvedRemoteTarget)" />
+    </Target>
+
+
+  <!--
+  Task creates a list (item) containing list of files to copy with additional metadata infomation appended to each file.
+  Metadata is used in CopySources task to copy sources to specified directories.
+    - Argument: FilesToMap - list of files to be copied to the remote host
+    - Argument: DeployDirectory - directory where FilesToMap should be copied to 
+    - Argument: PathFullToRelativePrefix - when FilesToMap contain fullPaths this parameter is required to determine
+                what part of this fullPath is appended to DeployDirectory path to resolve complete linux file path.
+                If not specified paths from FilesToMap are appended to DeployDirectory without parsing.
+    - Output: FileMap - similar list to FilesToMap but each file has additional metadata added that is used by CopySources task.
+  -->
+  <UsingTask
+    TaskName="MapFilesWindowsLinux"
+    TaskFactory="CodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll" >
+    <ParameterGroup>
+      <FilesToMap ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <DeployDirectory ParameterType="System.String" Required="true" />
+      <PathFullToRelativePrefix ParameterType="System.String" Required="false" />
+      <FileMap ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Utilities.Core.dll" />
+      <Using Namespace="System"/>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          StringBuilder builder = new StringBuilder();
+          List<Microsoft.Build.Utilities.TaskItem> outputMap = new List<Microsoft.Build.Utilities.TaskItem>();
+          foreach (ITaskItem file in FilesToMap)
+          {
+              String relativeFilePath;
+              
+              //convert full windows path to relative when PathFullToRelativePrefix is set to determine final linux file path
+              if (!String.IsNullOrEmpty(PathFullToRelativePrefix))
+              {
+                  // Make sure PathFullToRelativePrefix ends with "\" character
+                  if (!PathFullToRelativePrefix.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                      PathFullToRelativePrefix += Path.DirectorySeparatorChar;
+                      
+                  Uri filePath = new Uri(file.GetMetadata("FullPath"));
+                  Uri folderPath = new Uri(PathFullToRelativePrefix);
+                  relativeFilePath = Uri.UnescapeDataString(folderPath.MakeRelativeUri(filePath).ToString()
+                                    .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar));
+              }
+              else
+                  relativeFilePath = file.GetMetadata("Identity");
+              
+              // Make sure DeployDirectory ends with "/" character
+              if (!DeployDirectory.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+                  DeployDirectory += Path.AltDirectorySeparatorChar;
+              
+              // Resolve file path on the remote host
+              String linuxFile = DeployDirectory + relativeFilePath.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+              // Create 
+              Microsoft.Build.Utilities.TaskItem fileMappingWithMetadata = new Microsoft.Build.Utilities.TaskItem(file.GetMetadata("FullPath"));
+              fileMappingWithMetadata.SetMetadata("IsAdditionalSources", "true");
+              fileMappingWithMetadata.SetMetadata("IsMapping", "true");
+              fileMappingWithMetadata.SetMetadata("RemoteCopyFile", "true");
+              fileMappingWithMetadata.SetMetadata("NormalizedLocalFullPath", file.GetMetadata("FullPath"));
+              fileMappingWithMetadata.SetMetadata("RemoteFile", linuxFile);
+              outputMap.Add(fileMappingWithMetadata);
+          }
+          FileMap = outputMap.ToArray();
+      ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+</Project>
