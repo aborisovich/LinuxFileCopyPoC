@@ -19,9 +19,9 @@
   Operation is performed once and is not repeated with parent project rebuilds.
   Task is up to date until CopySourcesUpToDateFile.tlog file exists.
   -->
-  <Target Name="CopyLinuxExternals" BeforeTargets="_CopySources" DependsOnTargets="_RequiresRemoteConnection"
+  <Target Name="CopyLinuxExternals" BeforeTargets="_CopySources"
           Outputs="@(FilesToCopy)">
-    
+
     <!--Increase verbosity to show debug messages -->
     <Message Importance="low" Text="Files to copy: @(FilesToCopy)" />
     <Message Importance="low" Text="RemoteTarget: $(ResolvedRemoteTarget)" />
@@ -33,6 +33,12 @@
       <Output TaskParameter="FileMap" ItemName="WindowsLinuxFileMap" />
     </MapFilesWindowsLinux>
 
+    <CheckIsFileInUse FileToCheck="$(SolutionDir)external\$(ResolvedRemoteTargetId).Local_Remote_PathMapping.tlog">
+      <Output TaskParameter="IsFileInUse" PropertyName="IsFileInUse" />
+    </CheckIsFileInUse>
+    <CallTarget Targets="CopyLinuxExternals - exit"
+               Condition="$(IsFileInUse) == 'true'"/>
+
     <CopySources  Sources="@(WindowsLinuxFileMap)"
                   UpToDateFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).CopySourcesUpToDateFile.tlog"
                   RemoteProjectDirFile="$(SolutionDir)external\$(ResolvedRemoteTargetId).RemoteProjectDirFile.tlog"
@@ -41,14 +47,18 @@
                   RemoteProjectDir="$(DeployPath)"
                   IntermediateDir="$(SolutionDir)external"
                   RemoteTarget="$(ResolvedRemoteTarget)" />
-    </Target>
+  </Target>
+
+  <Target Name="CopyLinuxExternals - exit">
+    <Message Text="Exiting, task is executed in parallel by other project."/>
+  </Target>
 
 
   <!--
   Task creates a list (item) containing list of files to copy with additional metadata infomation appended to each file.
   Metadata is used in CopySources task to copy sources to specified directories.
-    - Argument: FilesToMap - list of files to be copied to the remote host
-    - Argument: DeployDirectory - directory where FilesToMap should be copied to 
+    - Argument: FilesToMap - list of files to be copied to the remote host.
+    - Argument: DeployDirectory - directory where FilesToMap should be copied to.
     - Argument: PathFullToRelativePrefix - when FilesToMap contain fullPaths this parameter is required to determine
                 what part of this fullPath is appended to DeployDirectory path to resolve complete linux file path.
                 If not specified paths from FilesToMap are appended to DeployDirectory without parsing.
@@ -107,7 +117,47 @@
               outputMap.Add(fileMappingWithMetadata);
           }
           FileMap = outputMap.ToArray();
-      ]]>
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <!--
+  Task checks whether file specified in FileToCheck is currently used by other process.
+    - Argument: FileToCheck - file to be checked whether is used by other process.
+    - Output: IsFileInUse - returns true when file is used by other process, otherwise false.
+  -->
+  <UsingTask
+    TaskName="CheckIsFileInUse"
+    TaskFactory="CodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll" >
+    <ParameterGroup>
+      <FileToCheck ParameterType="System.String" Required="true" />
+      <IsFileInUse ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System"/>
+      <Using Namespace="System.IO"/>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          try
+          {
+              FileInfo file = new FileInfo(FileToCheck);
+              using(FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.None))
+              {
+                  stream.Close();
+              }
+              IsFileInUse = "false";
+          }
+          catch(IOException)
+          {
+              IsFileInUse = "true";
+          }
+          catch(Exception)
+          {
+              IsFileInUse = "false";
+          }
+        ]]>
       </Code>
     </Task>
   </UsingTask>
